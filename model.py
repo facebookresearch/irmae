@@ -3,6 +3,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 
@@ -179,3 +180,77 @@ class CelebA_Decoder(nn.Module):
         z = z.view(z.size(0), 1024, 8, 8)
         z = self.dcnn(z)
         return z
+
+
+class AE(nn.Module):
+    def __init__(self, args):
+        super(AE, self).__init__()
+        self.n = args.n
+        self.vae = args.vae
+        if args.l:
+            self.l = args.l
+
+        if args.dataset == "mnist":
+            if args.vae:
+                self.enc = MNIST_Encoder(args.n * 2)
+                self.dec = MNIST_Decoder(args.n, vae=True)
+            else:
+                self.enc = MNIST_Encoder(args.n)
+                self.dec = MNIST_Decoder(args.n)
+        elif args.dataset == "celeba":
+            if args.vae:
+                self.enc = CelebA_Encoder(args.n * 2)
+                self.dec = CelebA_Decoder(args.n, vae=True)
+            else:
+                self.enc = CelebA_Encoder(args.n)
+                self.dec = CelebA_Decoder(args.n)
+        elif args.dataset == "shape":
+            if args.vae:
+                self.enc = Shape_Encoder(args.n * 2)
+                self.dec = Shape_Decoder(args.n, vae=True)
+            else:
+                self.enc = Shape_Encoder(args.n)
+                self.dec = Shape_Decoder(args.n)
+        
+        if not args.vae and args.l > 0:
+            self.mlp = MLP(args.n, args.l)
+
+    def encode(self, x):
+        z = self.enc(x)
+        if self.vae:
+            mu = z[:, :self.n]
+            logvar = z[:, self.n:]
+            z_bar = reparametrization(mu, logvar)
+        elif self.l > 0:
+            z_bar = self.mlp(z)
+        else:
+            z_bar = z
+        return z_bar
+
+    def decode(self, z):
+        return self.dec(z)
+
+    def forward(self, x):
+        z = self.enc(x)
+
+        if self.vae:
+            mu = z[:, :self.n]
+            logvar = z[:, self.n:]
+            z_bar = reparametrization(mu, logvar)
+        elif self.l > 0:
+            z_bar = self.mlp(z)
+        else:
+            z_bar = z
+
+        x_hat = self.decode(z_bar)
+        if self.vae:
+            loss = F.binary_cross_entropy(x_hat, x)
+        else:
+            loss = F.mse_loss(x_hat, x)
+        
+        return loss
+
+        # if self.vae:
+        #     return self.dec(z_bar), (mu, logvar)
+        # else:
+        #     return self.dec(z_bar), (None, Nonw)

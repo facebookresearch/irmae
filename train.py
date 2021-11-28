@@ -82,50 +82,14 @@ def main(args):
 
     # init networks ##########################################
 
-    if args.dataset == "mnist":
-        if args.vae:
-            enc = model.MNIST_Encoder(args.n * 2)
-            dec = model.MNIST_Decoder(args.n, vae=True)
-        else:
-            enc = model.MNIST_Encoder(args.n)
-            dec = model.MNIST_Decoder(args.n)
-    elif args.dataset == "celeba":
-        if args.vae:
-            enc = model.CelebA_Encoder(args.n * 2)
-            dec = model.CelebA_Decoder(args.n, vae=True)
-        else:
-            enc = model.CelebA_Encoder(args.n)
-            dec = model.CelebA_Decoder(args.n)
-    elif args.dataset == "shape":
-        if args.vae:
-            enc = model.Shape_Encoder(args.n * 2)
-            dec = model.Shape_Decoder(args.n, vae=True)
-        else:
-            enc = model.Shape_Encoder(args.n)
-            dec = model.Shape_Decoder(args.n)
-
-    dec.to(device)
-    enc.to(device)
-
-    if not args.vae and args.l > 0:
-        mlp = model.MLP(args.n, args.l)
-        mlp.to(device)
+    net = model.AE(args)
+    net.to(device)
 
     # optimizer ##########################################
-    if args.l > 0:
-        optimizer = optim.Adam([
-            {'params': dec.parameters(), 'lr': args.lr},
-            {'params': enc.parameters(), 'lr': args.lr},
-            {'params': mlp.parameters(), 'lr': args.lr},
-        ])
-    else:
-        optimizer = optim.Adam([
-            {'params': dec.parameters(), 'lr': args.lr},
-            {'params': enc.parameters(), 'lr': args.lr},
-        ])
+    optimizer = optim.Adam(net.parameters(), args.lr)
 
     # train ################################################
-    save_path = args.checkpoint + "/" + args.dataset
+    save_path = args.checkpoint + "/" + args.dataset + "/"
 
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -135,81 +99,30 @@ def main(args):
         recon_loss = 0
 
         for yi, _, in tqdm(train_loader):
-            enc.train()
-            dec.train()
-            if args.l > 0:
-                mlp.train()
+            net.train()
 
             optimizer.zero_grad()
 
             yi = yi.to(device)
-            z_hat = enc(yi)
-
-            if args.vae:
-                mu = z_hat[:, :args.n]
-                logvar = z_hat[:, args.n:]
-                z_bar = model.reparametrization(mu, logvar)
-            else:
-                if args.l > 0:
-                    z_bar = mlp(z_hat)
-                else:
-                    z_bar = z_hat
-
-            y_hat = dec(z_bar)
-            if args.vae:
-                loss = F.binary_cross_entropy(y_hat, yi)
-            else:
-                loss = F.mse_loss(y_hat, yi)
+            loss = net(yi)
             recon_loss += loss.item()
-
-            if args.vae:
-                loss -= args.beta * torch.mean(
-                    1 + logvar - mu.pow(2) - logvar.exp())
 
             loss.backward()
             optimizer.step()
 
         recon_loss /= len(train_loader)
-        z_norm = np.average(np.sqrt(np.sum(
-            z_hat.detach().cpu().numpy()**2, axis=1)))
-
-        print("epoch " + str(e) + '\ttraining loss = ' + str(recon_loss)
-              + '\tz norm = ' + str(z_norm))
+        print("epoch " + str(e) + '\ttraining loss = ' + str(recon_loss))
 
         # save model ##########################################
-        torch.save(enc.state_dict(),
-                   save_path + "/enc_" + args.model_name)
-        torch.save(dec.state_dict(),
-                   save_path + "/dec_" + args.model_name)
-
-        if args.l > 0:
-            torch.save(mlp.state_dict(),
-                       save_path + "/mlp_" + args.model_name)
+        torch.save(net.state_dict(), save_path + args.model_name)
 
         valid_loss = 0
 
         for yi, _ in tqdm(valid_loader):
-            enc.eval()
-            dec.eval()
-
-            if args.l > 0:
-                mlp.eval()
+            net.eval()
 
             yi = yi.to(device)
-            z_eval = enc(yi)
-
-            if args.vae:
-                mu = z_eval[:, :args.n]
-                logvar = z_eval[:, args.n:]
-                z_bar_eval = model.reparametrization(mu, logvar)
-            else:
-                if args.l > 0:
-                    z_bar_eval = mlp(z_eval)
-                else:
-                    z_bar_eval = z_eval
-            y_eval = dec(z_bar_eval)
-
-            eval_loss = F.mse_loss(y_eval, yi)
+            eval_loss = net(yi)
             valid_loss += eval_loss.item()
 
         valid_loss /= len(valid_loader)

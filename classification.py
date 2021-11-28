@@ -67,10 +67,16 @@ def main(args):
 
     enc.to(device)
 
+    dict = torch.load(args.checkpoint + "/mnist/" + args.model_name,
+            map_location=torch.device('cpu'))
+    enc_dict = {}
+    
+    for k in dict.keys():
+        if k[:4] == "enc.":
+            enc_dict[k[4:]] = dict[k]
+
     if not args.supervised:
-        enc.load_state_dict(torch.load(
-            args.checkpoint + "/mnist/enc_" + args.model_name,
-            map_location=torch.device('cpu')))
+        enc.load_state_dict(enc_dict)
 
     head = model.Head(args.n, 10)
     head.to(device)

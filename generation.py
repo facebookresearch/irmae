@@ -76,44 +76,51 @@ def main(args):
 
     # load model ##########################################
 
-    if args.dataset == "mnist":
-        if args.vae:
-            enc = model.MNIST_Encoder(args.n * 2)
-            dec = model.MNIST_Decoder(args.n, vae=True)
-        else:
-            enc = model.MNIST_Encoder(args.n)
-            dec = model.MNIST_Decoder(args.n)
-    elif args.dataset == "celeba":
-        if args.vae:
-            enc = model.CelebA_Encoder(args.n * 2)
-            dec = model.CelebA_Decoder(args.n, vae=True)
-        else:
-            enc = model.CelebA_Encoder(args.n)
-            dec = model.CelebA_Decoder(args.n)
-    elif args.dataset == "shape":
-        if args.vae:
-            enc = model.Shape_Encoder(args.n * 2)
-            dec = model.Shape_Decoder(args.n, vae=True)
-        else:
-            enc = model.Shape_Encoder(args.n)
-            dec = model.Shape_Decoder(args.n)
+    # if args.dataset == "mnist":
+    #     if args.vae:
+    #         enc = model.MNIST_Encoder(args.n * 2)
+    #         dec = model.MNIST_Decoder(args.n, vae=True)
+    #     else:
+    #         enc = model.MNIST_Encoder(args.n)
+    #         dec = model.MNIST_Decoder(args.n)
+    # elif args.dataset == "celeba":
+    #     if args.vae:
+    #         enc = model.CelebA_Encoder(args.n * 2)
+    #         dec = model.CelebA_Decoder(args.n, vae=True)
+    #     else:
+    #         enc = model.CelebA_Encoder(args.n)
+    #         dec = model.CelebA_Decoder(args.n)
+    # elif args.dataset == "shape":
+    #     if args.vae:
+    #         enc = model.Shape_Encoder(args.n * 2)
+    #         dec = model.Shape_Decoder(args.n, vae=True)
+    #     else:
+    #         enc = model.Shape_Encoder(args.n)
+    #         dec = model.Shape_Decoder(args.n)
 
-    dec.load_state_dict(torch.load(
-        args.checkpoint + "/" + args.dataset + "/dec_" + args.model_name,
-        map_location=torch.device('cpu')))
-    enc.load_state_dict(torch.load(
-        args.checkpoint + "/" + args.dataset + "/enc_" + args.model_name,
-        map_location=torch.device('cpu')))
-    dec.eval()
-    enc.eval()
+    # dec.load_state_dict(torch.load(
+    #     args.checkpoint + "/" + args.dataset + "/dec_" + args.model_name,
+    #     map_location=torch.device('cpu')))
+    # enc.load_state_dict(torch.load(
+    #     args.checkpoint + "/" + args.dataset + "/enc_" + args.model_name,
+    #     map_location=torch.device('cpu')))
+    # dec.eval()
+    # enc.eval()
 
-    if args.l > 0:
-        mlp = model.MLP(args.n, args.l)
-        mlp.load_state_dict(torch.load(
+    # if args.l > 0:
+    #     mlp = model.MLP(args.n, args.l)
+    #     mlp.load_state_dict(torch.load(
+    #             args.checkpoint + "/" + args.dataset +
+    #             "/mlp_" + args.model_name,
+    #             map_location=torch.device('cpu')))
+    #     mlp.eval()
+
+    net = model.AE(args)
+    net.load_state_dict(torch.load(
                 args.checkpoint + "/" + args.dataset +
-                "/mlp_" + args.model_name,
+                "/" + args.model_name,
                 map_location=torch.device('cpu')))
-        mlp.eval()
+    net.eval()
 
     #####################################################
 
@@ -121,32 +128,14 @@ def main(args):
 
     if args.task == "reconstruction":
         yi, _ = next(iter(test_loader))
-        if args.vae:
-            z_hat = enc(yi)
-            mu = z_hat[:, :args.n]
-            logvar = z_hat[:, args.n:]
-            zi = model.reparametrization(mu, logvar)
-        else:
-            if args.l > 0:
-                zi = mlp(enc(yi))
-            else:
-                zi = enc(yi)
+        zi = net.encode(yi)
 
-        y_hat = dec(zi[:args.X * args.Y]).data.numpy()
+        y_hat = net.decode(zi[:args.X * args.Y]).data.numpy()
 
     elif args.task == "interpolation":
         yi, _ = next(iter(test_loader))
 
-        if args.vae:
-            z_hat = enc(yi)
-            mu = z_hat[:, :args.n]
-            logvar = z_hat[:, args.n:]
-            zi = model.reparametrization(mu, logvar)
-        else:
-            if args.l > 0:
-                zi = mlp(enc(yi))
-            else:
-                zi = enc(yi)
+        zi = net.encode(yi)
 
         zs = []
         for i in range(args.X):
@@ -156,21 +145,12 @@ def main(args):
             for j in range(args.Y):
                 zs.append((z0 - z1) * j / args.Y + z1)
         zs = torch.stack(zs, axis=0)
-        y_hat = dec(zs).data.numpy()
+        y_hat = net.decode(zs).data.numpy()
 
     elif args.task == "mvg":
         z = []
         for yi, _ in test_loader:
-            if args.vae:
-                z_hat = enc(yi)
-                mu = z_hat[:, :args.n]
-                logvar = z_hat[:, args.n:]
-                zi = model.reparametrization(mu, logvar)
-            else:
-                if args.l > 0:
-                    zi = mlp(enc(yi))
-                else:
-                    zi = enc(yi)
+            zi = net.encode(yi)
             z.append(zi.detach().numpy())
         z = np.concatenate(z, axis=0)
         mu = np.average(z, axis=0)
@@ -180,20 +160,11 @@ def main(args):
         zs = np.random.multivariate_normal(mu, sigma, args.X * args.Y)
         zs = torch.Tensor(zs)
 
-        y_hat = dec(zs).data.numpy()
+        y_hat = net.decode(zs).data.numpy()
     elif args.task == "gmm":
         z = []
         for yi, _ in test_loader:
-            if args.vae:
-                z_hat = enc(yi)
-                mu = z_hat[:, :args.n]
-                logvar = z_hat[:, args.n:]
-                zi = model.reparametrization(mu, logvar)
-            else:
-                if args.l > 0:
-                    zi = mlp(enc(yi))
-                else:
-                    zi = enc(yi)
+            zi = net.encode(yi)
             z.append(zi.detach().numpy())
         z = np.concatenate(z, axis=0)
         gmm = mixture.GaussianMixture(
@@ -202,21 +173,12 @@ def main(args):
 
         zs, _ = gmm.sample(args.X * args.Y)
         zs = torch.Tensor(zs)
-        y_hat = dec(zs).data.numpy()
+        y_hat = net.decode(zs).data.numpy()
 
     elif args.task == "pca":
         z = []
         for yi, _ in test_loader:
-            if args.vae:
-                z_hat = enc(yi)
-                mu = z_hat[:, :args.n]
-                logvar = z_hat[:, args.n:]
-                zi = model.reparametrization(mu, logvar)
-            else:
-                if args.l > 0:
-                    zi = mlp(enc(yi))
-                else:
-                    zi = enc(yi)
+            zi = net.encode(yi)
             z.append(zi.detach().numpy())
         z = np.concatenate(z, axis=0)
 
@@ -246,7 +208,7 @@ def main(args):
         zs = np.concatenate(zs, axis=0)
         zs = torch.Tensor(zs)
 
-        y_hat = dec(zs).data.numpy()
+        y_hat = net.decode(zs).data.numpy()
 
     # now plot
     for i in range(args.X):

@@ -64,59 +64,16 @@ def main(args):
 
     plt.figure(figsize=(6, 4))
 
-    if args.dataset == "mnist":
-        if args.vae:
-            enc = model.MNIST_Encoder(args.n * 2)
-            dec = model.MNIST_Decoder(args.n, vae=True)
-        else:
-            enc = model.MNIST_Encoder(args.n)
-            dec = model.MNIST_Decoder(args.n)
-    elif args.dataset == "celeba":
-        if args.vae:
-            enc = model.CelebA_Encoder(args.n * 2)
-            dec = model.CelebA_Decoder(args.n, vae=True)
-        else:
-            enc = model.CelebA_Encoder(args.n)
-            dec = model.CelebA_Decoder(args.n)
-    elif args.dataset == "shape":
-        if args.vae:
-            enc = model.Shape_Encoder(args.n * 2)
-            dec = model.Shape_Decoder(args.n, vae=True)
-        else:
-            enc = model.Shape_Encoder(args.n)
-            dec = model.Shape_Decoder(args.n)
-
-    dec.load_state_dict(torch.load(args.checkpoint + "/" + args.dataset
-                        + "/dec_" + args.model_name,
+    net = model.AE(args)
+    net.load_state_dict(torch.load(args.checkpoint + "/" + args.dataset + "/"
+                        + args.model_name,
                         map_location=torch.device('cpu')))
-    enc.load_state_dict(torch.load(args.checkpoint + "/" + args.dataset
-                        + "/enc_" + args.model_name,
-                        map_location=torch.device('cpu')))
-    dec.eval()
-    enc.eval()
-
-    if args.l > 0:
-        mlp = model.MLP(args.n, args.l)
-        mlp.load_state_dict(torch.load(args.checkpoint + "/" + args.dataset
-                            + "/mlp_" + args.model_name,
-                            map_location=torch.device('cpu')))
-        mlp.eval()
+    net.eval()
 
     z = []
     for yi, _ in test_loader:
-        if args.vae:
-            z_hat = enc(yi)
-            mu = z_hat[:, :args.n]
-            logvar = z_hat[:, args.n:]
-            for j in range(100):
-                z_hat = model.reparametrization(mu, logvar)
-                z.append(z_hat)
-        else:
-            if args.l > 0:
-                z_hat = mlp(enc(yi))
-            else:
-                z_hat = enc(yi)
-            z.append(z_hat)
+        z_hat = net.encode(yi)
+        z.append(z_hat)
 
     z = torch.cat(z, dim=0).data.numpy()
 
