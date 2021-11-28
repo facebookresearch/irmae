@@ -75,46 +75,6 @@ def main(args):
         )
 
     # load model ##########################################
-
-    # if args.dataset == "mnist":
-    #     if args.vae:
-    #         enc = model.MNIST_Encoder(args.n * 2)
-    #         dec = model.MNIST_Decoder(args.n, vae=True)
-    #     else:
-    #         enc = model.MNIST_Encoder(args.n)
-    #         dec = model.MNIST_Decoder(args.n)
-    # elif args.dataset == "celeba":
-    #     if args.vae:
-    #         enc = model.CelebA_Encoder(args.n * 2)
-    #         dec = model.CelebA_Decoder(args.n, vae=True)
-    #     else:
-    #         enc = model.CelebA_Encoder(args.n)
-    #         dec = model.CelebA_Decoder(args.n)
-    # elif args.dataset == "shape":
-    #     if args.vae:
-    #         enc = model.Shape_Encoder(args.n * 2)
-    #         dec = model.Shape_Decoder(args.n, vae=True)
-    #     else:
-    #         enc = model.Shape_Encoder(args.n)
-    #         dec = model.Shape_Decoder(args.n)
-
-    # dec.load_state_dict(torch.load(
-    #     args.checkpoint + "/" + args.dataset + "/dec_" + args.model_name,
-    #     map_location=torch.device('cpu')))
-    # enc.load_state_dict(torch.load(
-    #     args.checkpoint + "/" + args.dataset + "/enc_" + args.model_name,
-    #     map_location=torch.device('cpu')))
-    # dec.eval()
-    # enc.eval()
-
-    # if args.l > 0:
-    #     mlp = model.MLP(args.n, args.l)
-    #     mlp.load_state_dict(torch.load(
-    #             args.checkpoint + "/" + args.dataset +
-    #             "/mlp_" + args.model_name,
-    #             map_location=torch.device('cpu')))
-    #     mlp.eval()
-
     net = model.AE(args)
     net.load_state_dict(torch.load(
                 args.checkpoint + "/" + args.dataset +

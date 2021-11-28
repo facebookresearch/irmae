@@ -187,8 +187,7 @@ class AE(nn.Module):
         super(AE, self).__init__()
         self.n = args.n
         self.vae = args.vae
-        if args.l:
-            self.l = args.l
+        self.l = args.l
 
         if args.dataset == "mnist":
             if args.vae:
@@ -249,8 +248,3 @@ class AE(nn.Module):
             loss = F.mse_loss(x_hat, x)
         
         return loss
-
-        # if self.vae:
-        #     return self.dec(z_bar), (mu, logvar)
-        # else:
-        #     return self.dec(z_bar), (None, Nonw)
