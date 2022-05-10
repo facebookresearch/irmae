@@ -185,6 +185,7 @@ class CelebA_Decoder(nn.Module):
 class AE(nn.Module):
     def __init__(self, args):
         super(AE, self).__init__()
+        self.args = args
         self.n = args.n
         self.vae = args.vae
         self.l = args.l
@@ -244,6 +245,9 @@ class AE(nn.Module):
         x_hat = self.decode(z_bar)
         if self.vae:
             loss = F.binary_cross_entropy(x_hat, x)
+            loss -= self.args.beta * torch.mean(
+                1 + logvar - mu.pow(2) - logvar.exp()
+            )
         else:
             loss = F.mse_loss(x_hat, x)
         
